@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solar System Simulator with Collisions</title>
+<style>
+  body { text-align: center; font-family: sans-serif; background: #000; color: white; margin:0; padding:0; }
+  canvas { display: block; margin: 20px auto; background: #000; border: 1px solid #555; }
+  input { width: 50px; margin: 5px; }
+  button { margin: 5px; }
+</style>
+</head>
+<body>
+
+<h2>Solar System Simulator with Planet Collisions</h2>
+<div>
+  Sun Mass: <input type="number" id="sunMass" value="1000">
+  Planet Mass: <input type="number" id="planetMass" value="1">
+  Planet Speed: <input type="number" id="planetSpeed" value="2">
+  <button onclick="launchPlanet()">Launch Planet</button>
+  <button onclick="resetSimulation()">Reset</button>
+</div>
+
+<canvas id="canvas" width="800" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+const G = 1; // Gravitational constant
+let sun = { x: canvas.width/2, y: canvas.height/2, mass: 1000, radius: 30 };
+let planets = [];
+
+function launchPlanet() {
+  const mass = parseFloat(document.getElementById('planetMass').value);
+  const speed = parseFloat(document.getElementById('planetSpeed').value);
+  const angle = Math.random() * 2 * Math.PI; // random initial angle
+  const distance = 150 + Math.random()*100;
+
+  const planet = {
+    x: sun.x + distance * Math.cos(angle),
+    y: sun.y + distance * Math.sin(angle),
+    vx: -speed * Math.sin(angle),
+    vy: speed * Math.cos(angle),
+    mass: mass,
+    radius: 5 + mass,
+    path: []
+  };
+  planets.push(planet);
+}
+
+function resetSimulation() {
+  planets = [];
+}
+
+// Elastic collision between two planets
+function checkCollision(p1, p2) {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  if(dist < p1.radius + p2.radius) {
+    // Normalize collision vector
+    const nx = dx / dist;
+    const ny = dy / dist;
+    // Relative velocity
+    const vx_rel = p1.vx - p2.vx;
+    const vy_rel = p1.vy - p2.vy;
+    const dot = vx_rel*nx + vy_rel*ny;
+
+    // Only resolve if moving towards each other
+    if(dot < 0) {
+      const m1 = p1.mass;
+      const m2 = p2.mass;
+      const coeff = (2 * dot) / (m1 + m2);
+      p1.vx -= coeff * m2 * nx;
+      p1.vy -= coeff * m2 * ny;
+      p2.vx += coeff * m1 * nx;
+      p2.vy += coeff * m1 * ny;
+    }
+  }
+}
+
+function update(dt) {
+  planets.forEach(p => {
+    // Gravitational pull from Sun
+    const dx = sun.x - p.x;
+    const dy = sun.y - p.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const force = G * sun.mass * p.mass / (dist*dist);
+    const ax = force * dx / dist / p.mass;
+    const ay = force * dy / dist / p.mass;
+
+    p.vx += ax * dt;
+    p.vy += ay * dt;
+
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+
+    p.path.push({x: p.x, y: p.y});
+    if(p.path.length > 200) p.path.shift();
+  });
+
+  // Check collisions between planets
+  for(let i=0; i<planets.length; i++){
+    for(let j=i+1; j<planets.length; j++){
+      checkCollision(planets[i], planets[j]);
+    }
+  }
+}
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Sun
+  ctx.beginPath();
+  ctx.fillStyle = 'yellow';
+  ctx.arc(sun.x, sun.y, sun.radius, 0, 2*Math.PI);
+  ctx.fill();
+
+  // Planets
+  planets.forEach(p => {
+    // Trail
+    ctx.beginPath();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 1;
+    for(let i=0;i<p.path.length;i++){
+      const point = p.path[i];
+      if(i===0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    }
+    ctx.stroke();
+
+    // Planet circle
+    ctx.beginPath();
+    ctx.fillStyle = 'cyan';
+    ctx.arc(p.x, p.y, p.radius, 0, 2*Math.PI);
+    ctx.fill();
+  });
+}
+
+let lastTime = performance.now();
+function loop(time) {
+  const dt = (time - lastTime)/16;
+  lastTime = time;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop(performance.now());
+</script>
+
+</body>
+</html>
